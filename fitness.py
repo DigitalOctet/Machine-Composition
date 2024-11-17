@@ -38,6 +38,7 @@ def fitness(Individual):
     pts += rhythm(pitch)  #节奏型得分
     pts += various_average(pitch)  #均值方差得分
     pts += pitch_jump(pitch)   #音符跨度得分
+    pts += pitch_variety(pitch) #音符种类数得分
     pts += scale_in_major_notes(pitch)  #检查音符是否在特定调式中
     pts += calculate_melodic_reasonableness(pitch) #按小节评估音乐片段的音阶合理性
     return pts
@@ -256,7 +257,7 @@ if __name__ == "__main__":
             20,10,22,10,20,0,15,20]
     t = 0
     times = 0
-    while t<500 and times <50 :
+    while t<500 and times < 70:
         li=[]
         for i in range(32):
             if i%4 != 0 and randint(0,2) == 0:
