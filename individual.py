@@ -5,7 +5,7 @@ from scipy.io.wavfile import write
 class Individual:
     HIGHEST_PITCH = 27
     NUM_PITCHES = 32
-    DURATION = 0.5
+    DURATION = 0.3
     SAMPLE_RATE = 44100
     PITCH_TO_FREQ = {
         0:  0,
