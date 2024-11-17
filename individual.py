@@ -1,6 +1,7 @@
 import numpy as np
 import random
 from scipy.io.wavfile import write
+from fitness import *
 
 class Individual:
     HIGHEST_PITCH = 27
@@ -27,7 +28,7 @@ class Individual:
         self.fitness = self.compute_fitness()
 
     def compute_fitness(self):
-        return 0
+        return fitness(self)
 
     def generate_music(self):
         freqs = [Individual.PITCH_TO_FREQ[p] for p in self.pitches]

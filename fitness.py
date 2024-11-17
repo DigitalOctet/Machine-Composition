@@ -20,12 +20,30 @@ idl_variance = 10     #理想方差
 coeff_mean = 0.2    #均值偏离惩罚系数
 coeff_variance = 0.3  #方差偏离惩罚系数
 coeff_mode = 1   #调式符合奖励系数
+major_notes = [8, 10, 12, 13, 15, 17, 19, 20]  #选择调式，此处以C大调为例
+jump_weights = {
+    1: 1.0,    #符合自然流动（1度跳跃）
+    2: 0.8,    
+    3: 0.6,    #中性
+    4: 0.4,
+    5: 0.1,    #较为突兀
+    6: 0.1,
+}
+JUMP_SCORE = 100 #总分100
 
 def fitness(Individual):
-
     pts = 0
-    #自检
-    pitch = Individual.pitch[::]
+    pitch = Individual.pitches[::]
+    self_check(pitch)   #自检
+    pts += rhythm(pitch)  #节奏型得分
+    pts += various_average(pitch)  #均值方差得分
+    pts += pitch_jump(pitch)   #音符跨度得分
+    pts += scale_in_major_notes(pitch)  #检查音符是否在特定调式中
+    pts += calculate_melodic_reasonableness(pitch) #按小节评估音乐片段的音阶合理性
+    return pts
+
+#自检
+def self_check(pitch):
     assert len(pitch) == 32, 'len pitch must be 32'
 
     strong = []
@@ -37,7 +55,9 @@ def fitness(Individual):
     assert not (0 in strong), 'strong beat cant be 0'
     assert not (0 in midstrong), 'midstrong beat cant be 0'
 
-    #节奏形
+#节奏型加分
+def rhythm(pitch):
+    pts = 0
     pitch_div = [pitch[i:i+4] for i in range(0, 32, 4)]
     rhythm = []
     for bar in pitch_div:
@@ -60,8 +80,6 @@ def fitness(Individual):
         if rhythm[i] == rhythm[i+2]:
             pts += 10
 
-    
-
     rhythm_set = set(rhythm)
     rhythm_kinds = len(rhythm_set)
 
@@ -77,11 +95,13 @@ def fitness(Individual):
         pts += -rhythm_kinds*10
 
     print(rhythm)
-    print('pts after rhythm:', pts)
+    print('Rhythm scores:', pts)
+    return pts
     
-    
-    ####
-    pitch_fmt = Individual.pitch[::]
+#方差均值得分
+def various_average(pitch):
+    pts = 0
+    pitch_fmt = pitch[::]
     for i in range(31):
         if pitch_fmt[i+1] == 0:
             pitch_fmt[i+1] = pitch_fmt[i]
@@ -97,10 +117,14 @@ def fitness(Individual):
     pts -= int(coeff_variance*de_variance**2)
 
     print(mean, variance)
-    print('pts after mean, variance:', pts)
+    print('Mean, Variance score:', pts)
+    return pts
 
-    ####
-    pitch_simpl = [x for x in Individual.pitch if x != 0]
+
+#音高间隔加分、罚分
+def pitch_jump(pitch):
+    pts = 0
+    pitch_simpl = [x for x in pitch if x != 0]
     for i in range(len(pitch_simpl)-1):
         de = abs(pitch_simpl[i+1] - pitch_simpl[i])
         if de > 6:      #跳音惩罚
@@ -108,14 +132,18 @@ def fitness(Individual):
         if de == 1:      #半音惩罚
             pts += -40
 
-
     de = max(pitch_simpl) - min(pitch_simpl)
     if de > 18:
         pts -=de*5
 
-    print('pts after interval:', pts)
+    print('Pitch interval score:', pts)
+    return pts
 
-    pitch_set = set(Individual.pitch)
+
+#音符种类多样型加分
+def pitch_variety(pitch):
+    pts = 0
+    pitch_set = set(pitch)
     pitch_kinds = len(pitch_set)
     if pitch_kinds in (6,7,8,9,10,11,12):
         pts += 100
@@ -123,11 +151,17 @@ def fitness(Individual):
         pts += -200
     elif pitch_kinds >16:
         pts += -pitch_kinds*5
-    print('pts after pitch vary:', pts)
+    print('Pitch variety score:', pts)
+    return pts
 
-    for pit in pitch_fmt:
+
+#检查音符是否在调式中
+def scale_in_major_notes(pitch):
+    pts = 0
+    pitch_simple = [x for x in pitch if x != 0]
+    for pit in pitch_simple:
         de = (pit - main_pitch) % 12
-        if de == 0 : 
+        if de == 0: 
             pts += 30*coeff_mode #主音
         if de == 2: 
             pts += 15*coeff_mode  #上主音
@@ -142,20 +176,69 @@ def fitness(Individual):
         if de == 11:
             pts += 6*coeff_mode #导音
 
-    if pitch_fmt[-1] == main_pitch:  #最后一个音为主音C4加100分
-        pts += 100*coeff_mode
-    if pitch_fmt[-1] == main_pitch + 12: #最后一个音为主音C5加80分
-        pts += 80*coeff_mode
-    print('pts after pitch harmony:', pts)
-
-
+    if pitch[-1] == main_pitch:  #最后一个音为主音C4加100分
+        pts += 40*coeff_mode
+    if pitch[-1] == main_pitch + 12: #最后一个音为主音C5加80分
+        pts += 40*coeff_mode
+    print('Pitch harmony score:', pts)
     return pts
+
+#按小节评估音乐片段的音阶进行合理性
+def calculate_melodic_reasonableness(pitch):
+    if len(pitch) != 32:
+        raise ValueError("必须是32位!")
+    #将音乐划分为四小节
+    bars = [ [x for x in pitch[i : i+8] if x !=0 ] for i in range(0, 32, 8)]
+    #对每小节进行评分
+    def evaluate_bar(bar) :
+        valid_jumps = 0   #合理跳跃数
+        total_jumps = 0   #总跳跃数
+        direction_changes = 0  #方向变化总数
+        prev_note = bar[0]
+        prev_direction = None
+        for i in range(1, len(bar)):
+            curr_note = bar[i]
+            #跳跃幅度检查
+            if curr_note in major_notes and prev_note in major_notes:
+                jump = abs(major_notes.index(curr_note) - major_notes.index(prev_note))
+                weight = jump_weights.get(jump, 0)
+                valid_jumps += weight
+            total_jumps += 1  #总跳跃数
+            # 检查方向变化
+            if curr_note != prev_note:
+                curr_direction = 1 if curr_note > prev_note else -1
+                if prev_direction is not None and curr_direction != prev_direction:
+                    direction_changes += 1
+                prev_direction = curr_direction
+            prev_note = curr_note
+        
+        #评分计算
+        jump_score = valid_jumps/ total_jumps * JUMP_SCORE      #跳跃平滑性得分
+        direction_score = max(0, 100 - direction_changes * 10)  #方向平滑性得分
+        return jump_score, direction_score
+    bar_scores = []
+    for bar in bars:
+        jump_score, direction_score = evaluate_bar(bar)
+        bar_scores.append({
+            "jump_score" : jump_score,
+            "direction_score" : direction_score,
+            "bar_total_score" : 0.7 * jump_score + 0.3 * direction_score
+        })
+    
+    #整体评分
+    overall_jump_score = sum(bar["jump_score"] for bar in bar_scores) / len(bar_scores)
+    overall_direction_score = sum(bar["direction_score"] for bar in bar_scores) / len(bar_scores)
+    overall_score = overall_jump_score + overall_direction_score
+    print(f"Melodic score : {overall_score : .2f}")
+    return overall_score
+
+
 
 if __name__ == "__main__": 
     from random import randint
     class Indivdual():
             def __init__(self,li):
-                self.pitch = li
+                self.pitches = li
 
     #小红帽前两节
     li1 = [8,10,12,13,15,0,12,8,
@@ -172,7 +255,8 @@ if __name__ == "__main__":
             18,20,22,23,25,22,20,8,
             20,10,22,10,20,0,15,20]
     t = 0
-    while t<500:
+    times = 0
+    while t<500 and times <50 :
         li=[]
         for i in range(32):
             if i%4 != 0 and randint(0,2) == 0:
@@ -197,6 +281,7 @@ if __name__ == "__main__":
         #test3 = Indivdual(li3)
         #print(fitness(test1))
         t = fitness(test)
+        times += 1
 
     print(t)
     print(li)
