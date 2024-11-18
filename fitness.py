@@ -22,11 +22,11 @@ coeff_variance = 0.3  #方差偏离惩罚系数
 coeff_mode = 1   #调式符合奖励系数
 major_notes = [8, 10, 12, 13, 15, 17, 19, 20]  #选择调式，此处以C大调为例
 jump_weights = {
-    1: 1.0,    #符合自然流动（1度跳跃）
-    2: 0.8,    
-    3: 0.6,    #中性
+    1: 0.7,    #符合自然流动（1度跳跃）
+    2: 1.0,    
+    3: 0.9,    #最流畅的二三度跳跃
     4: 0.4,
-    5: 0.1,    #较为突兀
+    5: 0.3,    #较为突兀
     6: 0.1,
 }
 JUMP_SCORE = 100 #总分100
@@ -184,7 +184,7 @@ def scale_in_major_notes(pitch):
     print('Pitch harmony score:', pts)
     return pts
 
-#按小节评估音乐片段的音阶进行合理性
+#按小节评估音乐片段的音阶进行合理性, 使得能有更多和弦出现
 def calculate_melodic_reasonableness(pitch):
     if len(pitch) != 32:
         raise ValueError("必须是32位!")
