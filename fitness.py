@@ -20,6 +20,9 @@ idl_variance = 10     #理想方差
 coeff_mean = 0.2    #均值偏离惩罚系数
 coeff_variance = 0.3  #方差偏离惩罚系数
 coeff_mode = 1   #调式符合奖励系数
+coeff_melody = 1 #旋律组合奖励系数
+de_major_notes = [0, 2, 4, 5, 7, 9, 11]  #大调
+de_xmajor_notes = [1, 3, -1, 6, 8 ,10]
 major_notes = [8, 10, 12, 13, 15, 17, 19, 20]  #选择调式，此处以C大调为例
 jump_weights = {
     1: 0.7,    #符合自然流动（1度跳跃）
@@ -41,6 +44,7 @@ def fitness(Individual):
     pts += pitch_variety(pitch) #音符种类数得分
     pts += scale_in_major_notes(pitch)  #检查音符是否在特定调式中
     pts += calculate_melodic_reasonableness(pitch) #按小节评估音乐片段的音阶合理性
+    pts += melody(pitch) #旋律合理得分
     return pts
 
 #自检
@@ -126,17 +130,19 @@ def various_average(pitch):
 def pitch_jump(pitch):
     pts = 0
     pitch_simpl = [x for x in pitch if x != 0]
+    de_list = []
     for i in range(len(pitch_simpl)-1):
         de = abs(pitch_simpl[i+1] - pitch_simpl[i])
+        de_list.append(de)
         if de > 6:      #跳音惩罚
-            pts += -de**2
-        if de == 1:      #半音惩罚
+            pts += -int(de**1.5)
+    if de_list.count(1) > 3:      #半音惩罚
             pts += -40
 
     de = max(pitch_simpl) - min(pitch_simpl)
     if de > 18:
         pts -=de*5
-
+        
     print('Pitch interval score:', pts)
     return pts
 
@@ -229,10 +235,50 @@ def calculate_melodic_reasonableness(pitch):
     #整体评分
     overall_jump_score = sum(bar["jump_score"] for bar in bar_scores) / len(bar_scores)
     overall_direction_score = sum(bar["direction_score"] for bar in bar_scores) / len(bar_scores)
-    overall_score = overall_jump_score + overall_direction_score
+    overall_score = int(overall_jump_score + overall_direction_score)
     print(f"Melodic score : {overall_score : .2f}")
     return overall_score
-
+          
+def melody(pitch):  
+    pts = 0
+    pitch_rgl = []
+    for i in pitch:
+        if i == 0:
+            continue
+        if (i-main_pitch)%12 in de_major_notes: #调式音
+            pitch_rgl.append(de_major_notes.index((i-main_pitch)%12)+1)
+        else:
+            pitch_rgl.append(de_xmajor_notes.index((i-main_pitch)%12)+1.5)
+    if [1,2,3] in pitch_rgl:
+        pts += 10
+    if [1,3,5] in pitch_rgl:
+        pts += 12
+    if [3,4,5] in pitch_rgl:
+        pts += 12
+    if [2,3,1] in pitch_rgl:
+        pts += 12
+    if [3,2,1] in pitch_rgl:
+        pts += 10
+    if [5,3,1] in pitch_rgl:
+        pts += 8
+    if [1,7,6] in pitch_rgl:
+        pts += 5
+    if [1,3,1] in pitch_rgl:
+        pts += 8
+    if [3,3,5] in pitch_rgl:
+        pts += 8
+    if [2,1,6] in pitch_rgl:
+        pts += 8
+    if [5,6,5] in pitch_rgl:
+        pts += 5
+    if [6,5,3] in pitch_rgl:
+        pts += 7
+    if [3,6,5] in pitch_rgl:
+        pts += 9
+    if [6,1,2] in pitch_rgl:
+        pts += 4
+    return pts*coeff_melody
+          
 
 
 if __name__ == "__main__": 
