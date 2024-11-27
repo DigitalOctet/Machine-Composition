@@ -166,29 +166,39 @@ def pitch_variety(pitch):
 def scale_in_major_notes(pitch):
     pts = 0
     pitch_simple = [x for x in pitch if x != 0]
+    de_simple = []
     for pit in pitch_simple:
         de = (pit - main_pitch) % 12
+        de_simple.append(de)
         if de == 0: 
-            pts += 30*coeff_mode #主音
+            pts += 30 #主音
         if de == 2: 
-            pts += 15*coeff_mode  #上主音
+            pts += 15 #上主音
         if de == 4:
-            pts += 20*coeff_mode  #中音
+            pts += 20  #中音
         if de == 5:
-            pts += 12*coeff_mode  #下属音
+            pts += 12  #下属音
         if de == 7:
-            pts += 25*coeff_mode #属音
+            pts += 25 #属音
         if de == 9:
-            pts += 20*coeff_mode #下中音
+            pts += 20 #下中音
         if de == 11:
-            pts += 6*coeff_mode #导音
+            pts += 6 #导音
+
+    #出现频率过高惩罚
+    maxfreq = len(pitch_simple)//3
+    
+    for i in (0,2,4,5,7,9,11):
+        p_cnt = de_simple.count(i)
+        if p_cnt > maxfreq:
+            pts += -20*(p_cnt-maxfreq)**2   
 
     if pitch[-1] == main_pitch:  #最后一个音为主音C4加100分
-        pts += 40*coeff_mode
+        pts += 40
     if pitch[-1] == main_pitch + 12: #最后一个音为主音C5加80分
-        pts += 40*coeff_mode
-    print('Pitch harmony score:', pts)
-    return pts
+        pts += 40
+    print('Pitch harmony score:', pts*coeff_mode)
+    return pts*coeff_mode
 
 #按小节评估音乐片段的音阶进行合理性, 使得能有更多和弦出现
 def calculate_melodic_reasonableness(pitch):
