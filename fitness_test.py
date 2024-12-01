@@ -135,8 +135,8 @@ def rhythm(pitch):
     elif rhythm_kinds > 6:
         pts += -rhythm_kinds*10
 
-    #print(rhythm)
-    #print('Rhythm scores:', pts)
+    print(rhythm)
+    print('Rhythm scores:', pts)
     return pts*coeff_rhythm
     
 #方差均值得分
@@ -160,8 +160,8 @@ def various_average(pitch):
     if de_variance > 5:
         pts -= int(coeff_variance*de_variance)
     pts += 100
-    #print(mean, variance)
-    #print('Mean, Variance score:', pts)
+    print(mean, variance)
+    print('Mean, Variance score:', pts)
     return pts
 
 
@@ -182,7 +182,7 @@ def pitch_jump(pitch):
     if de > 18:
         pts -=de*5
     pts = coeff_pitch_jump*pts+100   
-    #print('Pitch interval score:', pts)
+    print('Pitch interval score:', pts)
     return pts
 
 
@@ -197,7 +197,7 @@ def pitch_variety(pitch):
         pts += -200
     elif pitch_kinds >16:
         pts += -pitch_kinds*5
-    #print('Pitch variety score:', pts)
+    print('Pitch variety score:', pts)
     return pts
 
 
@@ -239,7 +239,7 @@ def scale_in_major_notes(pitch):
         pts += 40
     if pitch[-1] == main_pitch + 12: #最后一个音为主音C5加30分
         pts += 30
-    #print('Pitch harmony score:', pts*coeff_mode)
+    print('Pitch harmony score:', pts*coeff_mode)
     modify = 32/len(pitch_simple)
     pts *= modify
     return pts*coeff_mode
@@ -290,7 +290,7 @@ def calculate_melodic_reasonableness(pitch):
     overall_jump_score = sum(bar["jump_score"] for bar in bar_scores) / len(bar_scores)
     overall_direction_score = sum(bar["direction_score"] for bar in bar_scores) / len(bar_scores)
     overall_score = int(overall_jump_score + overall_direction_score)
-    #print(f"Melodic score : {overall_score : .2f}")
+    print(f"Melodic score : {overall_score : .2f}")
     return overall_score
           
 def melody(pitch):  
@@ -313,7 +313,7 @@ def melody(pitch):
     de12 = [a - b for a, b in zip(pitch_fmtrgl[0:8], pitch_fmtrgl[8:16])]
     de34 = [a - b for a, b in zip(pitch_fmtrgl[16:24], pitch_fmtrgl[24:32])]
     de24 = [a - b for a, b in zip(pitch_fmtrgl[8:16], pitch_fmtrgl[24:32])]
-    #print(pitch_rgl)
+    print(pitch_rgl)
     pts1 = 0
     if de13 == [0]*8:
         pts1 += 15
@@ -343,7 +343,7 @@ def melody(pitch):
     if de24 == [1]*8 or de24 == [-1]*8:
         pts1 += 20
     
-    #print(pts1)
+    print(pts1)
     
     def cnt(target):
         ans=0
@@ -376,9 +376,9 @@ def melody(pitch):
     pts += 7*cnt([5,6,1])
     pts += 6*cnt([5,6,3])
     pts += 6*cnt([7,6,5])          
-    pts = pts*coeff_rgl
+
     pts += pts1*coeff_re
-    #print(f'melody score : {pts*coeff_melody}')
+    print(f'melody score : {pts*coeff_melody}')
     return pts*coeff_melody
           
 
