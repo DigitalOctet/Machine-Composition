@@ -6,17 +6,17 @@ from individual import Individual
 class Population:
     # number of individuals in a population
     NUM_IND = 20
-    # number of individuals or children crossover generations per iteration
+    # number of individuals or children crossover generates per iteration
     CROSSOVER_IND = 14
 
-    def __init__(self, pitches = None):
+    def __init__(self, pitches=None):
         if pitches is None:
             self.individuals = [Individual() for _ in range(Population.NUM_IND)]
         else:
             self.individuals = [Individual(pitches[i]) for i in range(Population.NUM_IND)]
-        self.individuals = sorted(self.individuals, key=lambda ind: ind.fitness, reverse=True)
+        self.sort()
 
-    def evolve(self,crossover, threshold = 1500, N = 500):
+    def evolve(self,crossover, threshold=1500, N=1000):
         all_fit = np.array([ind.fitness for ind in self.individuals])
         mean_fit = [np.mean(all_fit)]
         max_fit = [self.get_max_fitness()]
@@ -49,21 +49,7 @@ class Population:
     def crossover_routellet(self):
         """
         Randomly choose `CROSSOVER_IND` parents according to their 
-        corresponding probabilites. For every two parents, we perform the 
-        following crossover to generate two children.
-
-                    parent 1                           parent 2 
-        +---+---+---+---+---+---+---+---+   +---+---+---+---+---+---+---+---+
-        | 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 |   | a | b | c | d | e | f | g | h |
-        +---+---+---+---+---+---+---+---+   +---+---+---+---+---+---+---+---+
-                     |      Randomly pick two points     |
-                      +-----------------+-----------------+
-                                        |
-                                        /
-        +---+---+---+---+---+---+---+---+   +---+---+---+---+---+---+---+---+
-        | 0 | 1 | c | d | e | f | g | 7 |   | a | b | 2 | 3 | 4 | 5 | 6 | h |
-        +---+---+---+---+---+---+---+---+   +---+---+---+---+---+---+---+---+
-                    child 1                                child 2
+        corresponding probabilites. 
         """
         children = []
         all_fit = np.array([ind.fitness for ind in self.individuals])
@@ -110,7 +96,24 @@ class Population:
     
     # 对选择出来的亲代进行交叉产生两个子代
     def crossover_operation(self, parent1, parent2):
-        points = np.random.choice(8, 2, replace=False)
+        """
+        For every two parents, we perform the following crossover to generate 
+        two children.
+
+                    parent 1                           parent 2 
+        +---+---+---+---+---+---+---+---+   +---+---+---+---+---+---+---+---+
+        | 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 |   | a | b | c | d | e | f | g | h |
+        +---+---+---+---+---+---+---+---+   +---+---+---+---+---+---+---+---+
+                     |      Randomly pick two points     |
+                      +-----------------+-----------------+
+                                        |
+                                        /
+        +---+---+---+---+---+---+---+---+   +---+---+---+---+---+---+---+---+
+        | 0 | 1 | c | d | e | f | g | 7 |   | a | b | 2 | 3 | 4 | 5 | 6 | h |
+        +---+---+---+---+---+---+---+---+   +---+---+---+---+---+---+---+---+
+                    child 1                                child 2
+        """
+        points = np.random.choice(7, 2, replace=False)
         x, y = points[0], points[1]
         x, y = (y, x) if x > y else (y, x)
         child1_pitch, child2_pitch = [0] * 32, [0] * 32
@@ -137,6 +140,7 @@ class Population:
                 else:
                     pitch[idx] = max(pitch[idx] - 1, 1)
                 pop.append(Individual(pitches=pitch))
+
         # 选一个音符，升高/降低两个半音
         if random.uniform(0, 1) <= prob:
             ind = random.randint(0, Population.NUM_IND - 1)
@@ -149,6 +153,7 @@ class Population:
                 else:
                     pitch[idx] = max(pitch[idx] - 2, 1)
                 pop.append(Individual(pitches=pitch))
+
         # 选连续的4个音符，升高/降低一个八度
         if random.uniform(0, 1) <= prob:
             ind = random.randint(0, Population.NUM_IND - 1)
@@ -170,13 +175,16 @@ class Population:
             pitch = self.individuals[ind].pitches[:]
             if is_add:
                 idx = random.randint(0, Individual.NUM_PITCHES - 1)
-                if (idx + 1) % 4 != 0:
-                    pitch[idx + 1] = 0
+                max_l = 3 - idx % 4
+                l = random.randint(0, max_l)
+                for i in range(idx + 1, idx + l + 1):
+                    pitch[i] = 0
             else:
                 idx = random.randint(0, Individual.NUM_PITCHES - 2)
                 if pitch[idx + 1] == 0:
                     pitch[idx + 1] = pitch[idx]
-            pop.append(Individual(pitches=pitch))
+            if not np.array_equal(pitch, self.individuals[ind].pitches):
+                pop.append(Individual(pitches=pitch))
 
         # 重复连续4个音符
         if random.uniform(0, 1) <= prob:
@@ -194,6 +202,7 @@ class Population:
             segments = np.split(np.array(pitch), 4)
             np.random.shuffle(segments)
             shuffled_array = np.concatenate(segments)
+            shuffled_array = [int(e) for e in shuffled_array]
             pop.append(Individual(pitches=shuffled_array))
         
         # 移调
@@ -229,20 +238,26 @@ class Population:
         if random.uniform(0, 1) <= prob:
             ind = random.randint(0, Population.NUM_IND - 1)
             pitch = self.individuals[ind].pitches[:]
-            pitch = [Individual.HIGHEST_PITCH + 1 - p for p in pitch]
+            pitch = [Individual.HIGHEST_PITCH + 1 - p if p != 0 else 0 for p in pitch]
             pop.append(Individual(pitches=pitch))
         
         return pop
     
     def selection(self, pop1, pop2):
+        ratio = 0.1
+        num_high_fit_ind = int(Population.NUM_IND * ratio)
+        num_random_ind = Population.NUM_IND - num_high_fit_ind
         all_pop = self.individuals + pop1 + pop2
         all_pop = sorted(all_pop, key=lambda ind: ind.fitness, reverse=True)
-        self.individuals = all_pop[: Population.NUM_IND]
+        next_generation = all_pop[: num_high_fit_ind]
+        random_ind = np.random.choice(all_pop[num_high_fit_ind:], num_random_ind, replace=False)
+        self.individuals = next_generation + list(random_ind)
+        self.sort()
 
     def plot(self, mean_fit, max_fit, min_fit, title):
-        plt.plot(mean_fit, label='Mean', linestyle='-', color='b')
-        plt.plot(max_fit, label='Max', linestyle='-', color='g')
-        plt.plot(min_fit, label='Min', linestyle='-', color='r')
+        plt.plot(min_fit, label='Min', linestyle='-', color='b')
+        plt.plot(mean_fit, label='Mean', linestyle='-', color='g')
+        plt.plot(max_fit, label='Max', linestyle='-', color='r')
         plt.legend()
         plt.title(title)
         plt.xlabel("# Generation")
@@ -264,3 +279,6 @@ class Population:
         inf_norm = np.linalg.norm(x, ord=np.inf)
         x_exp = np.exp(x / inf_norm)
         return x_exp / np.sum(x_exp)
+    
+    def sort(self):
+        self.individuals = sorted(self.individuals, key=lambda ind: ind.fitness, reverse=True)

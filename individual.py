@@ -17,7 +17,7 @@ class Individual:
         25: 698.46, 26: 739.99, 27: 783.99,
     }
 
-    def __init__(self, pitches = None):
+    def __init__(self, pitches=None):
         if pitches is None:
             self.pitches = [
                 random.randint(i % 4 == 0, Individual.HIGHEST_PITCH) 
