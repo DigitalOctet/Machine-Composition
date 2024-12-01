@@ -27,13 +27,13 @@ main_pitch = 8  #规定主音或调式
 idl_mean = 12   #理想均值
 idl_variance = 12     #理想方差
 
-coeff_mean = 4    #均值偏离惩罚系数
-coeff_variance = 5  #方差偏离惩罚系数
+coeff_mean = 8    #均值偏离惩罚系数
+coeff_variance = 10  #方差偏离惩罚系数
 coeff_pitch_jump = 0.3
-coeff_rhythm = 1
+coeff_rhythm = 0.5
 coeff_mode = 0.2   #调式符合奖励系数
-coeff_melody = 1 #旋律组合奖励系数
-coeff_re = 0.5
+coeff_melody = 0.4 #旋律组合奖励系数
+coeff_re = 0.3
 
 de_major_notes = [0, 2, 4, 5, 7, 9, 11]  #大调
 de_xmajor_notes = [1, 3, -1, 6, 8 ,10]
@@ -59,6 +59,7 @@ weights = {
     'melodic_reasonableness' : 1.0,
     'melody' : 1.0
 }
+test_flag = False
 
 def fitness(Individual):
     pts = 0
@@ -118,16 +119,13 @@ def rhythm(pitch):
         if rhythm[i] == rhythm[i+2]:
             pts += 10
 
-    XXXX_cnt = rhythm.count(7)
-    if XXXX_cnt >=4:
-        pts += 30*XXXX_cnt*2
     rhythm_set = set(rhythm)
     rhythm_kinds = len(rhythm_set)
     
     if rhythm_kinds == 1:   #节奏种类数惩奖
-        pts += -300
-    elif rhythm_kinds == 2:
         pts += -200
+    elif rhythm_kinds == 2:
+        pts += -100
     elif rhythm_kinds == 3:
         pts += 0
     elif rhythm_kinds in (4,5,6):
@@ -135,8 +133,9 @@ def rhythm(pitch):
     elif rhythm_kinds > 6:
         pts += -rhythm_kinds*10
 
-    #print(rhythm)
-    #print('Rhythm scores:', pts)
+    if test_flag:
+        print('Rhythm:',rhythm)
+        print('Rhythm scores:', pts)
     return pts*coeff_rhythm
     
 #方差均值得分
@@ -153,15 +152,16 @@ def various_average(pitch):
     mean = np.mean(pitch_fmt_array)
     de_mean = abs(mean-idl_mean)
     if de_mean > 4:
-        pts -= int(coeff_mean*de_mean)
+        pts -= int(coeff_mean*de_mean**0.4)
 
     variance = np.var(pitch_fmt_array)
     de_variance = abs(variance-idl_variance)
     if de_variance > 5:
-        pts -= int(coeff_variance*de_variance)
+        pts -= int(coeff_variance*de_variance**0.4)
     pts += 100
-    #print(mean, variance)
-    #print('Mean, Variance score:', pts)
+    if test_flag:
+        print('Mean, Variance:',mean, variance)
+        print('Mean, Variance score:', pts)
     return pts
 
 
@@ -173,16 +173,19 @@ def pitch_jump(pitch):
     for i in range(len(pitch_simpl)-1):
         de = abs(pitch_simpl[i+1] - pitch_simpl[i])
         de_list.append(de)
-        if de > 6:      #跳音惩罚
+        if 13 > de > 6:      #跳音惩罚
             pts += -int(de**1.5)
+        if de > 13 :
+            pts += -int(10*de**0.5)
     if de_list.count(1) > 3:      #半音惩罚
             pts += -40
 
     de = max(pitch_simpl) - min(pitch_simpl)
     if de > 18:
         pts -=de*5
-    pts = coeff_pitch_jump*pts+100   
-    #print('Pitch interval score:', pts)
+    pts = coeff_pitch_jump*pts+100
+    if test_flag:   
+        print('Pitch interval score:', pts)
     return pts
 
 
@@ -197,7 +200,8 @@ def pitch_variety(pitch):
         pts += -200
     elif pitch_kinds >16:
         pts += -pitch_kinds*5
-    #print('Pitch variety score:', pts)
+    if test_flag: 
+        print('Pitch variety score:', pts)
     return pts
 
 
@@ -230,16 +234,13 @@ def scale_in_major_notes(pitch):
     for i in (0,2,4,5,7,9,11):
         p_cnt = de_simple.count(i)
         if p_cnt > maxfreq:
-            pts += -25*(p_cnt-maxfreq)**2
-        if p_cnt >= maxfreq*2:
-            pts += -25*(p_cnt-maxfreq)**2
-        if p_cnt >= maxfreq*3:
-            pts += -25*(p_cnt-maxfreq)**2
+            pts += -25*(p_cnt-maxfreq)**1.5
     if pitch[-1] == main_pitch:  #最后一个音为主音C4加40分
         pts += 40
     if pitch[-1] == main_pitch + 12: #最后一个音为主音C5加30分
         pts += 30
-    #print('Pitch harmony score:', pts*coeff_mode)
+    if test_flag: 
+        print('Pitch harmony score:', pts*coeff_mode)
     modify = 32/len(pitch_simple)
     pts *= modify
     return pts*coeff_mode
@@ -290,7 +291,8 @@ def calculate_melodic_reasonableness(pitch):
     overall_jump_score = sum(bar["jump_score"] for bar in bar_scores) / len(bar_scores)
     overall_direction_score = sum(bar["direction_score"] for bar in bar_scores) / len(bar_scores)
     overall_score = int(overall_jump_score + overall_direction_score)
-    #print(f"Melodic score : {overall_score : .2f}")
+    if test_flag: 
+        print(f"Melodic score : {overall_score : .2f}")
     return overall_score
           
 def melody(pitch):  
@@ -313,7 +315,7 @@ def melody(pitch):
     de12 = [a - b for a, b in zip(pitch_fmtrgl[0:8], pitch_fmtrgl[8:16])]
     de34 = [a - b for a, b in zip(pitch_fmtrgl[16:24], pitch_fmtrgl[24:32])]
     de24 = [a - b for a, b in zip(pitch_fmtrgl[8:16], pitch_fmtrgl[24:32])]
-    #print(pitch_rgl)
+
     pts1 = 0
     if de13 == [0]*8:
         pts1 += 15
@@ -343,7 +345,6 @@ def melody(pitch):
     if de24 == [1]*8 or de24 == [-1]*8:
         pts1 += 20
     
-    #print(pts1)
     
     def cnt(target):
         ans=0
@@ -378,12 +379,16 @@ def melody(pitch):
     pts += 6*cnt([7,6,5])          
     pts = pts*coeff_rgl
     pts += pts1*coeff_re
-    #print(f'melody score : {pts*coeff_melody}')
+    if test_flag:
+        print(pitch_rgl)
+        print('melody re score:',pts1)  
+        print(f'melody score : {pts*coeff_melody}')
     return pts*coeff_melody
           
 
 
 if __name__ == "__main__": 
+    test_flag = True
     from random import randint
     class Indivdual():
             def __init__(self,li):
