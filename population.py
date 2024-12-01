@@ -16,7 +16,7 @@ class Population:
             self.individuals = [Individual(pitches[i]) for i in range(Population.NUM_IND)]
         self.individuals = sorted(self.individuals, key=lambda ind: ind.fitness, reverse=True)
 
-    def evolve(self, threshold = 100, N = 100, crossover = 'routellet'):
+    def evolve(self,crossover, threshold = 1500, N = 500):
         all_fit = np.array([ind.fitness for ind in self.individuals])
         mean_fit = [np.mean(all_fit)]
         max_fit = [self.get_max_fitness()]
@@ -31,6 +31,10 @@ class Population:
                 pop1 = self.crossover_routellet()
             elif crossover == 'tournament':
                 pop1 = self.crossover_tournament()
+            elif crossover == 'rank':
+                pop1 = self.crossover_rank()
+            elif crossover == 'random':
+                pop1 = self.crossover_random()
             # mutation
             mut_prob = min(1.0, (threshold - self.get_max_fitness()) / r + 0.01)
             pop2 = self.mutation(mut_prob)
@@ -40,7 +44,7 @@ class Population:
             mean_fit.append(np.mean(all_fit))
             max_fit.append(self.get_max_fitness())
             min_fit.append(self.get_min_fitness())
-        self.plot(mean_fit, max_fit, min_fit)
+        self.plot(mean_fit, max_fit, min_fit, title = crossover)
     
     def crossover_routellet(self):
         """
@@ -61,23 +65,14 @@ class Population:
         +---+---+---+---+---+---+---+---+   +---+---+---+---+---+---+---+---+
                     child 1                                child 2
         """
+        children = []
         all_fit = np.array([ind.fitness for ind in self.individuals])
         all_fit = self.compute_prob(all_fit)
         parents = np.random.choice(self.individuals, Population.CROSSOVER_IND, replace=False, p=all_fit)
-        children = []
         for i in range(Population.CROSSOVER_IND // 2):
-            points = np.random.choice(8, 2, replace=False)
-            x, y = points[0], points[1]
-            x, y = (y, x) if x > y else (y, x)
-            child1_pitch, child2_pitch = [0] * 32, [0] * 32
-            child1_pitch[: 4 * x] = parents[2 * i].pitches[: 4 * x]
-            child1_pitch[4 * x: 4 * y] = parents[2 * i + 1].pitches[4 * x: 4 * y]
-            child1_pitch[4 * y:] = parents[2 * i].pitches[4 * y:]
-            child2_pitch[: 4 * x] = parents[2 * i + 1].pitches[: 4 * x]
-            child2_pitch[4 * x: 4 * y] = parents[2 * i].pitches[4 * x: 4 * y]
-            child2_pitch[4 * y:] = parents[2 * i + 1].pitches[4 * y:]
-            children.append(Individual(pitches=child1_pitch))
-            children.append(Individual(pitches=child2_pitch))
+            child1, child2 = self.crossover_operation(parents[2 * i], parents[2 * i + 1])
+            children.append(child1)
+            children.append(child2)
         return children
     
     def crossover_tournament(self):
@@ -85,19 +80,47 @@ class Population:
         for _ in range(Population.CROSSOVER_IND // 2):
             parents = np.random.choice(self.individuals, 5, replace=False)
             parents = sorted(parents, key=lambda ind: ind.fitness, reverse=True)
-            points = np.random.choice(8, 2, replace=False)
-            x, y = points[0], points[1]
-            x, y = (y, x) if x > y else (y, x)
-            child1_pitch, child2_pitch = [0] * 32, [0] * 32
-            child1_pitch[: 4 * x] = parents[0].pitches[: 4 * x]
-            child1_pitch[4 * x: 4 * y] = parents[1].pitches[4 * x: 4 * y]
-            child1_pitch[4 * y:] = parents[0].pitches[4 * y:]
-            child2_pitch[: 4 * x] = parents[1].pitches[: 4 * x]
-            child2_pitch[4 * x: 4 * y] = parents[0].pitches[4 * x: 4 * y]
-            child2_pitch[4 * y:] = parents[1].pitches[4 * y:]
-            children.append(Individual(pitches=child1_pitch))
-            children.append(Individual(pitches=child2_pitch))
+            child1, child2 = self.crossover_operation(parents[0], parents[1])
+            children.append(child1)
+            children.append(child2)
         return children
+    
+    # 随机选择
+    def crossover_random(self):
+        children = []
+        for _ in range(Population.CROSSOVER_IND // 2):
+            parents = np.random.choice(self.individuals, 2, replace=False)
+            child1, child2 = self.crossover_operation(parents[0], parents[1])
+            children.append(child1)
+            children.append(child2)
+        return children
+    
+    # 按照排名来选择，排名越高的越容易被选择
+    def crossover_rank(self):
+        children = []
+        ranks = np.arange(Population.NUM_IND , 0, -1)
+        total_rank = np.sum(ranks)
+        probabilities = ranks / total_rank
+        for _ in range(Population.CROSSOVER_IND // 2):
+            parents = np.random.choice(self.individuals, 2, replace=False, p=probabilities)
+            child1, child2 = self.crossover_operation(parents[0], parents[1])
+            children.append(child1)
+            children.append(child2)
+        return children
+    
+    # 对选择出来的亲代进行交叉产生两个子代
+    def crossover_operation(self, parent1, parent2):
+        points = np.random.choice(8, 2, replace=False)
+        x, y = points[0], points[1]
+        x, y = (y, x) if x > y else (y, x)
+        child1_pitch, child2_pitch = [0] * 32, [0] * 32
+        child1_pitch[: 4 * x] = parent1.pitches[: 4 * x]
+        child1_pitch[4 * x: 4 * y] = parent2.pitches[4 * x: 4 * y]
+        child1_pitch[4 * y:] = parent1.pitches[4 * y:]
+        child2_pitch[: 4 * x] = parent2.pitches[: 4 * x]
+        child2_pitch[4 * x: 4 * y] = parent1.pitches[4 * x: 4 * y]
+        child2_pitch[4 * y:] = parent2.pitches[4 * y:]
+        return Individual(pitches=child1_pitch), Individual(pitches=child2_pitch)
 
     def mutation(self, prob):
         pop = []
@@ -114,7 +137,18 @@ class Population:
                 else:
                     pitch[idx] = max(pitch[idx] - 1, 1)
                 pop.append(Individual(pitches=pitch))
-        
+        # 选一个音符，升高/降低两个半音
+        if random.uniform(0, 1) <= prob:
+            ind = random.randint(0, Population.NUM_IND - 1)
+            idx = random.randint(0, Individual.NUM_PITCHES - 1)
+            if self.individuals[ind].pitches[idx] != 0:
+                pitch = self.individuals[ind].pitches[:]
+                is_add = random.randint(0, 1)
+                if is_add:
+                    pitch[idx] = min(pitch[idx] + 2, Individual.HIGHEST_PITCH)
+                else:
+                    pitch[idx] = max(pitch[idx] - 2, 1)
+                pop.append(Individual(pitches=pitch))
         # 选连续的4个音符，升高/降低一个八度
         if random.uniform(0, 1) <= prob:
             ind = random.randint(0, Population.NUM_IND - 1)
@@ -205,12 +239,12 @@ class Population:
         all_pop = sorted(all_pop, key=lambda ind: ind.fitness, reverse=True)
         self.individuals = all_pop[: Population.NUM_IND]
 
-    def plot(self, mean_fit, max_fit, min_fit):
+    def plot(self, mean_fit, max_fit, min_fit, title):
         plt.plot(mean_fit, label='Mean', linestyle='-', color='b')
         plt.plot(max_fit, label='Max', linestyle='-', color='g')
         plt.plot(min_fit, label='Min', linestyle='-', color='r')
         plt.legend()
-        plt.title("Fitness")
+        plt.title(title)
         plt.xlabel("# Generation")
         plt.ylabel("Fitness")
         plt.grid(True)

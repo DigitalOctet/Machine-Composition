@@ -1,6 +1,15 @@
 # 1 = F3, 8 = C4, 20 = C5, 27 = G5
 # 0 不能出现在强拍和中强拍
-
+'''
+C4 : 8
+D4 : 10
+E4 : 12
+F4 : 13
+G4 : 15
+A4 : 17
+B4 : 19
+C5 : 20
+'''  
 
 '''rhythm的编码如下
 rhythm = {[1,0,0,0]:0,
@@ -16,11 +25,12 @@ import numpy as np
 
 main_pitch = 8  #规定主音或调式
 idl_mean = 12   #理想均值
-idl_variance = 10     #理想方差
-coeff_mean = 0.2    #均值偏离惩罚系数
-coeff_variance = 0.3  #方差偏离惩罚系数
-coeff_mode = 1   #调式符合奖励系数
-coeff_melody = 1 #旋律组合奖励系数
+idl_variance = 12     #理想方差
+coeff_mean = 0.8    #均值偏离惩罚系数
+coeff_variance = 1  #方差偏离惩罚系数
+coeff_rhythm = 1
+coeff_mode = 0.5   #调式符合奖励系数
+coeff_melody = 4 #旋律组合奖励系数
 de_major_notes = [0, 2, 4, 5, 7, 9, 11]  #大调
 de_xmajor_notes = [1, 3, -1, 6, 8 ,10]
 major_notes = [8, 10, 12, 13, 15, 17, 19, 20]  #选择调式，此处以C大调为例
@@ -33,19 +43,35 @@ jump_weights = {
     6: 0.1,
 }
 JUMP_SCORE = 100 #总分100
+weights = {
+    'rhythm' : 1.0,
+    'various_average' : 1.0,
+    'pitch_jump' : 1.0,
+    'pitch_variety' : 1.0,
+    'scale_in_major_notes' : 1.0,
+    'melodic_reasonableness' : 1.0,
+    'melody' : 1.0
+}
 
 def fitness(Individual):
     pts = 0
     pitch = Individual.pitches[::]
     self_check(pitch)   #自检
-    pts += rhythm(pitch)  #节奏型得分
-    pts += various_average(pitch)  #均值方差得分
-    pts += pitch_jump(pitch)   #音符跨度得分
-    pts += pitch_variety(pitch) #音符种类数得分
-    pts += scale_in_major_notes(pitch)  #检查音符是否在特定调式中
-    pts += calculate_melodic_reasonableness(pitch) #按小节评估音乐片段的音阶合理性
-    pts += melody(pitch) #旋律合理得分
+
+    # 归一化权重
+    normalized_weights = normalize_weights(weights)
+    pts += normalized_weights['rhythm']*rhythm(pitch)  #节奏型得分
+    pts += normalized_weights['various_average']*various_average(pitch)  #均值方差得分
+    pts += normalized_weights['pitch_jump']*pitch_jump(pitch)   #音符跨度得分
+    pts += normalized_weights['pitch_variety'] *pitch_variety(pitch) #音符种类数得分
+    pts += normalized_weights['scale_in_major_notes'] *scale_in_major_notes(pitch)  #检查音符是否在特定调式中
+    pts += normalized_weights['melodic_reasonableness'] *calculate_melodic_reasonableness(pitch) #按小节评估音乐片段的音阶合理性
+    pts += normalized_weights['melody'] *melody(pitch) #旋律合理得分
     return pts
+
+def normalize_weights(weights):
+    total_weight = sum(weights.values())
+    return {k : v/total_weight*7 for k, v in weights.items()}
 
 #自检
 def self_check(pitch):
@@ -85,13 +111,16 @@ def rhythm(pitch):
         if rhythm[i] == rhythm[i+2]:
             pts += 10
 
+    XXXX_cnt = rhythm.count(7)
+    if XXXX_cnt >=4:
+        pts += 30*XXXX_cnt*2
     rhythm_set = set(rhythm)
     rhythm_kinds = len(rhythm_set)
-
+    
     if rhythm_kinds == 1:   #节奏种类数惩奖
-        pts += -200
+        pts += -300
     elif rhythm_kinds == 2:
-        pts += -100
+        pts += -200
     elif rhythm_kinds == 3:
         pts += 0
     elif rhythm_kinds in (4,5,6):
@@ -99,13 +128,14 @@ def rhythm(pitch):
     elif rhythm_kinds > 6:
         pts += -rhythm_kinds*10
 
-    print(rhythm)
-    print('Rhythm scores:', pts)
-    return pts
+    #print(rhythm)
+    #print('Rhythm scores:', pts)
+    return pts*coeff_rhythm
     
 #方差均值得分
 def various_average(pitch):
     pts = 0
+    global pitch_fmt
     pitch_fmt = pitch[::]
     for i in range(31):
         if pitch_fmt[i+1] == 0:
@@ -115,14 +145,16 @@ def various_average(pitch):
 
     mean = np.mean(pitch_fmt_array)
     de_mean = abs(mean-idl_mean)
-    pts -= int(coeff_mean*de_mean**2)
+    if de_mean > 4:
+        pts -= int(20*coeff_mean*de_mean**1.2)
 
     variance = np.var(pitch_fmt_array)
     de_variance = abs(variance-idl_variance)
-    pts -= int(coeff_variance*de_variance**2)
+    if de_variance > 5:
+        pts -= int(20*coeff_variance*de_variance**1.2)
 
-    print(mean, variance)
-    print('Mean, Variance score:', pts)
+    #print(mean, variance)
+    #print('Mean, Variance score:', pts)
     return pts
 
 
@@ -143,7 +175,7 @@ def pitch_jump(pitch):
     if de > 18:
         pts -=de*5
         
-    print('Pitch interval score:', pts)
+    #print('Pitch interval score:', pts)
     return pts
 
 
@@ -158,7 +190,7 @@ def pitch_variety(pitch):
         pts += -200
     elif pitch_kinds >16:
         pts += -pitch_kinds*5
-    print('Pitch variety score:', pts)
+    #print('Pitch variety score:', pts)
     return pts
 
 
@@ -171,33 +203,38 @@ def scale_in_major_notes(pitch):
         de = (pit - main_pitch) % 12
         de_simple.append(de)
         if de == 0: 
-            pts += 30 #主音
+            pts += 24 #主音
         if de == 2: 
-            pts += 15 #上主音
+            pts += 18 #上主音
         if de == 4:
             pts += 20  #中音
         if de == 5:
-            pts += 12  #下属音
+            pts += 16  #下属音
         if de == 7:
-            pts += 25 #属音
+            pts += 23 #属音
         if de == 9:
             pts += 20 #下中音
         if de == 11:
-            pts += 6 #导音
+            pts += 12 #导音
 
     #出现频率过高惩罚
-    maxfreq = len(pitch_simple)//3
+    maxfreq = len(pitch_simple)//4
     
     for i in (0,2,4,5,7,9,11):
         p_cnt = de_simple.count(i)
         if p_cnt > maxfreq:
-            pts += -20*(p_cnt-maxfreq)**2   
-
-    if pitch[-1] == main_pitch:  #最后一个音为主音C4加100分
+            pts += -25*(p_cnt-maxfreq)**2
+        if p_cnt >= maxfreq*2:
+            pts += -25*(p_cnt-maxfreq)**2
+        if p_cnt >= maxfreq*3:
+            pts += -25*(p_cnt-maxfreq)**2
+    if pitch[-1] == main_pitch:  #最后一个音为主音C4加40分
         pts += 40
-    if pitch[-1] == main_pitch + 12: #最后一个音为主音C5加80分
-        pts += 40
-    print('Pitch harmony score:', pts*coeff_mode)
+    if pitch[-1] == main_pitch + 12: #最后一个音为主音C5加30分
+        pts += 30
+    #print('Pitch harmony score:', pts*coeff_mode)
+    modify = 32/len(pitch_simple)
+    pts *= modify
     return pts*coeff_mode
 
 #按小节评估音乐片段的音阶进行合理性, 使得能有更多和弦出现
@@ -246,47 +283,82 @@ def calculate_melodic_reasonableness(pitch):
     overall_jump_score = sum(bar["jump_score"] for bar in bar_scores) / len(bar_scores)
     overall_direction_score = sum(bar["direction_score"] for bar in bar_scores) / len(bar_scores)
     overall_score = int(overall_jump_score + overall_direction_score)
-    print(f"Melodic score : {overall_score : .2f}")
+    #print(f"Melodic score : {overall_score : .2f}")
     return overall_score
           
 def melody(pitch):  
     pts = 0
     pitch_rgl = []
+    pitch_fmtrgl = []
     for i in pitch:
         if i == 0:
+            pitch_fmtrgl.append(pre)
             continue
         if (i-main_pitch)%12 in de_major_notes: #调式音
-            pitch_rgl.append(de_major_notes.index((i-main_pitch)%12)+1)
+            pre = de_major_notes.index((i-main_pitch)%12)+1
+            pitch_rgl.append(pre)
+            pitch_fmtrgl.append(pre)
         else:
-            pitch_rgl.append(de_xmajor_notes.index((i-main_pitch)%12)+1.5)
-    if [1,2,3] in pitch_rgl:
+            pre = de_major_notes.index((i-main_pitch-1)%12)+1.5
+            pitch_rgl.append(pre)
+            pitch_fmtrgl.append(pre)
+    de13 = [a - b for a, b in zip(pitch_fmtrgl[0:8], pitch_fmtrgl[16:24])]
+    de12 = [a - b for a, b in zip(pitch_fmtrgl[0:8], pitch_fmtrgl[8:16])]
+    de34 = [a - b for a, b in zip(pitch_fmtrgl[16:24], pitch_fmtrgl[24:32])]
+    de24 = [a - b for a, b in zip(pitch_fmtrgl[8:16], pitch_fmtrgl[24:32])]
+    print(pitch_rgl)
+    if de13 == [0]*8:
+        pts += 15
+    elif de13[:4] == [0]*4:
+        pts += 15
+    if de13 == [1]*8 or de13 == [-1]*8:
+        pts += 20
+
+    if de12 == [0]*8 :
         pts += 10
-    if [1,3,5] in pitch_rgl:
-        pts += 12
-    if [3,4,5] in pitch_rgl:
-        pts += 12
-    if [2,3,1] in pitch_rgl:
-        pts += 12
-    if [3,2,1] in pitch_rgl:
+    elif de12[:4] == [0]*4:
+        pts += 15
+    if de12 == [1]*8 or de12 == [-1]*8:
+        pts += 20
+
+    if de34 == [0]*8 :
         pts += 10
-    if [5,3,1] in pitch_rgl:
-        pts += 8
-    if [1,7,6] in pitch_rgl:
-        pts += 5
-    if [1,3,1] in pitch_rgl:
-        pts += 8
-    if [3,3,5] in pitch_rgl:
-        pts += 8
-    if [2,1,6] in pitch_rgl:
-        pts += 8
-    if [5,6,5] in pitch_rgl:
-        pts += 5
-    if [6,5,3] in pitch_rgl:
-        pts += 7
-    if [3,6,5] in pitch_rgl:
-        pts += 9
-    if [6,1,2] in pitch_rgl:
-        pts += 4
+    elif de34[:4] == [0]*4:
+        pts += 15
+    if de34 == [1]*8 or de34 == [-1]*8:
+        pts += 20
+
+    if de24 == [0]*8 :
+        pts += 10
+    elif de24[:4] == [0]*4:
+        pts += 15
+    if de24 == [1]*8 or de24 == [-1]*8:
+        pts += 20
+    
+
+    pts += 10*pitch_rgl.count([1,2,3])
+    pts += 12*pitch_rgl.count([1,3,5])
+    pts += 12*pitch_rgl.count([3,4,5])
+    pts += 12*pitch_rgl.count([2,3,1])
+    pts += 10*pitch_rgl.count([3,2,1])
+    pts += 8*pitch_rgl.count([5,3,1])
+    pts += 5*pitch_rgl.count([1,7,6])
+    pts += 8*pitch_rgl.count([1,3,1])
+    pts += 8*pitch_rgl.count([3,3,5])
+    pts += 8*pitch_rgl.count([2,1,6])
+    pts += 5*pitch_rgl.count([5,6,5])
+    pts += 7*pitch_rgl.count([6,5,3])
+    pts += 9*pitch_rgl.count([3,6,5])
+    pts += 4*pitch_rgl.count([6,1,2])
+    pts += 7*pitch_rgl.count([2,3,5])
+    pts += 9*pitch_rgl.count([1,2,6])
+    pts += 9*pitch_rgl.count([3,5,6])
+    pts += 7*pitch_rgl.count([5,6,1])
+    pts += 5*pitch_rgl.count([5,6,3])
+    pts += 5*pitch_rgl.count([7,6,5])          
+    pts -= 30*pitch_rgl.count([1,1,1,1])
+    pts -= 50*pitch_rgl.count([1,1,1,1,1])
+    print(f'melody score : {pts*coeff_melody}')
     return pts*coeff_melody
           
 
@@ -311,102 +383,6 @@ if __name__ == "__main__":
             20,10,27,13,25,25,12,0,
             18,20,22,23,25,22,20,8,
             20,10,22,10,20,0,15,20]
-    #久石让-"菊次郎的夏天"前奏
-    li4 = [17,24,29,24,13,20,25,20,
-           15,22,27,22,20,27,32,27,
-           17,24,29,24,13,20,25,20,
-           15,22,27,22,20,27,32,27]
-    #F-777-"Triple fuse"移调
-    li5 = [10,22,10,20,6,20,6,17,
-           13,17,13,20,8,15,8,17,
-           10,22,10,20,6,20,6,27,
-           25,17,13,20,8,15,8,17]
-    #F-777-"One Last Hope"主旋律
-    li6 = [18,0,0,0,18,25,0,17,
-           0,18,0,0,0,18,20,0,
-           18,17,18,0,0,0,18,25,
-           0,17,0,18,0,0,0,30]
-    #Yiruma-"River Flows In You"主旋律移调
-    li7 = [13,15,13,12,13,0,8,0,
-          13,15,13,12,13,0,0,0,
-          13,15,13,12,13,15,17,18,
-          20,17,15,13,12,0,8,0]
-    #Kr1z-"A Hero's Life"主旋律微调
-    li8 = [10,10,13,10,10,13,0,12,
-          6,6,12,6,8,8,13,8,
-          10,10,13,10,10,13,0,12,
-          6,6,13,15,12,8,12,12]
-    #Iming-"Glacial Maze"第一段移调
-    li9 = [15,0,0,15,0,15,18,20,
-          10,0,0,10,0,10,13,0,
-          15,0,0,15,0,15,18,0,
-          22,0,0,20,0,13,18,17]
-    #Iming-"Glacial Maze"主旋律二段移调
-    li10 = [3,15,13,15,10,8,6,8,
-          3,15,13,15,8,0,6,0,
-          3,15,13,15,10,8,6,5,
-          6,13,8,13,6,0,5,0]
-    #罗大佑-"童年"节选
-    li11 = [17,17,0,17,17,15,15,0,
-          13,13,0,13,15,13,10,8,
-          8,8,0,8,10,8,15,17,
-          13,0,0,0,0,0,0,0]
-    #Waterflame-"ThunderZone v2"节选
-    li12 = [15,13,15,0,15,0,15,17,
-          18,0,17,0,17,0,17,18,
-          20,0,15,0,15,0,22,18,
-          17,0,18,17,13,15,17,18]
-    #Plun-"Orca"节选移调
-    li13 = [22,24,25,20,0,8,13,17,
-          15,13,12,13,0,20,15,13,
-          8,13,12,13,0,15,17,20,
-          18,17,13,15,0,17,15,13]
-    #F-777 "Dance Of The Violin"主旋律微调
-    li14 = [17,10,17,13,18,22,20,18,
-          20,17,13,12,0,8,12,13,
-          17,10,17,13,18,22,20,18,
-          20,17,13,15,0,25,0,24]
-    #Quree-"One Forgotten Night"主旋律
-    li15 = [10,17,22,25,0,0,24,0,
-          0,20,0,0,17,0,15,17,
-          20,0,0,22,0,0,15,0,
-          0,20,0,0,17,0,15,17]
-    li16 = [10,17,22,25,0,0,24,0,
-          0,25,0,0,24,0,25,27,
-          29,0,0,22,0,0,17,0,
-          27,0,0,25,0,24,0,0]
-    #帕赫贝尔-"D大调卡农" 节选移调
-    li17 = [20,0,17,18,20,0,17,18,
-          20,8,10,12,13,15,17,18,
-          17,0,13,15,17,0,5,6,
-          8,10,8,6,8,13,12,13]
-    li18 = [10,0,13,12,10,0,8,6,
-          8,6,5,6,8,10,12,13,
-          10,0,13,12,13,0,12,13,
-          12,10,12,13,15,17,18,20]
-    #Plum-"Terrasphere" 移调
-    li19 = [20,0,0,13,13,15,17,18,
-          20,0,25,0,24,0,20,0,
-          13,0,0,8,8,13,15,17,
-          18,17,15,13,17,0,15,0]
-    li20 = [20,0,25,0,25,24,22,20,
-          20,0,15,18,17,18,17,15,
-          13,0,8,20,15,17,15,13,
-          13,0,0,0,0,0,0,0]
-    #Катюша（喀秋莎）微调移调
-    li21 = [10,0,0,12,13,0,0,10,
-          13,13,12,10,12,0,5,0,
-          12,0,0,13,15,0,0,12,
-          15,15,13,12,10,0,0,0]
-    li22 = [17,0,22,0,20,0,22,20,
-          18,18,17,15,17,0,10,0,
-          0,18,0,15,17,0,0,13,
-          15,15,13,12,10,0,0,0]
-    #suno ai做的钢琴曲
-    li23 = [3,0,10,8,0,13,0,15,
-          0,10,18,17,0,13,10,6,
-          3,0,10,8,0,15,0,13,
-          0,8,15,13,0,8,6,1]
     t = 0
     times = 0
     while t<500 and times < 70:
@@ -417,16 +393,7 @@ if __name__ == "__main__":
             else:
                 li.append(randint(8,20))
         
-        '''
-                C4 : 8
-                D4 : 10
-                E4 : 12
-                F4 : 13
-                G4 : 15
-                A4 : 17
-                B4 : 19
-                C5 : 20
-        '''  
+      
         
 
         test = Indivdual(li)
