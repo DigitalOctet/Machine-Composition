@@ -1,7 +1,7 @@
 # Machine Composition Using Genetic Algorithm
 ## Getting Started
 ### Preparations
-You need `numpy`, `scipy` and `matplotlib`. If you are using Anaconda to manage your python environment, simply use the following command to create a new environment identical to ours:
+You need `mido`, `numpy`, `scipy`, and `matplotlib`. If you are using Anaconda to manage your python environment, simply use the following command to create a new environment identical to ours:
 ```bash
 conda env create -f environment.yml && conda activate composition
 ```

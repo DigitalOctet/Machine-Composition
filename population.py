@@ -180,9 +180,14 @@ class Population:
                 for i in range(idx + 1, idx + l + 1):
                     pitch[i] = 0
             else:
-                idx = random.randint(0, Individual.NUM_PITCHES - 2)
-                if pitch[idx + 1] == 0:
-                    pitch[idx + 1] = pitch[idx]
+                idx = random.randint(0, Individual.NUM_PITCHES - 1)
+                if pitch[idx] == 0:
+                    idx_mod_4 = idx % 4
+                    for i in range(1, idx_mod_4):
+                        if pitch[idx - i] != 0:
+                            for j in range(idx - i + 1, idx + 1):
+                                pitch[j] = pitch[idx - i]
+                            break
             if not np.array_equal(pitch, self.individuals[ind].pitches):
                 pop.append(Individual(pitches=pitch))
 
