@@ -434,4 +434,3 @@ if __name__ == "__main__":
     print('--------ref----------')
     test2 = Indivdual(li2)
     print('score',fitness(test2))
-
