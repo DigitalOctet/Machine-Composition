@@ -1,5 +1,5 @@
 __pycache__/
-*.mid
-*.png
-*.wav
+# *.mid
+# *.png
+# *.wav
 *.DS_Store
