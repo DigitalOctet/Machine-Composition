@@ -27,8 +27,8 @@ class Population:
                 break
             # crossover
             pop1 = []
-            if crossover == 'routellet':
-                pop1 = self.crossover_routellet()
+            if crossover == 'roulette':
+                pop1 = self.crossover_roulette()
             elif crossover == 'tournament':
                 pop1 = self.crossover_tournament()
             elif crossover == 'rank':
@@ -46,7 +46,7 @@ class Population:
             min_fit.append(self.get_min_fitness())
         self.plot(mean_fit, max_fit, min_fit, title = crossover)
     
-    def crossover_routellet(self):
+    def crossover_roulette(self):
         """
         Randomly choose `CROSSOVER_IND` parents according to their 
         corresponding probabilites. 
