@@ -2,7 +2,7 @@ from population import Population
 import fitness_test 
 if __name__ == "__main__":
     population = Population()
-    population.evolve(crossover='random')
+    population.evolve(crossover='routellet')
     best_clip = population.get_best_clip()
     best_clip.generate_wave()
     best_clip.generate_midi()
